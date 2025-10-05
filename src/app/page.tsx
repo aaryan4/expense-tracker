@@ -168,10 +168,16 @@ export default function Home() {
   }
 
   async function loadFromServer() {
-    const res = await fetch("/api/transactions", { cache: "no-store" });
-    const data = await res.json();
-    setTransactions(data);
+  const res = await fetch("/api/transactions", { cache: "no-store" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "Failed" }));
+    console.error("Load error:", error);
+    setTransactions([]); // avoid .map crash
+    return;
   }
+  const data = await res.json();
+  setTransactions(Array.isArray(data) ? data : []);
+}
   function formatAmount(a: number | string) {
     const n = typeof a === "number" ? a : parseFloat(a);
     return Number.isFinite(n) ? n.toFixed(2) : "—";

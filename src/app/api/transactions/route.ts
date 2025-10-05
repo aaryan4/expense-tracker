@@ -6,36 +6,67 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY!
 );
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
+type Row = {
+  id: string;
+  amount: number | string;
+  currency: string;
+  merchant: string;
+  category: string;
+  user_note: string | null;
+  created_at: string;
+};
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert([
-        {
-          amount: body.amount,
-          currency: body.currency,
-          merchant: body.merchant,
-          category: body.category,
-          created_at: body.dateISO,
-        },
-      ])
-      .select();
-
-    if (error) throw error;
-    return NextResponse.json(data);
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 400 });
-  }
+function toCamel(r: Row) {
+  return {
+    id: r.id,
+    amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
+    currency: r.currency,
+    merchant: r.merchant,
+    category: r.category,
+    userNote: r.user_note,
+    createdAt: r.created_at,
+  };
 }
 
 export async function GET() {
   const { data, error } = await supabase
     .from("transactions")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(100);
 
-  if (error) return NextResponse.json({ error: String(error) }, { status: 400 });
-  return NextResponse.json(data);
+  if (error) {
+    return NextResponse.json({ error: String(error.message) }, { status: 400 });
+  }
+
+  const out = (data ?? []).map(toCamel);
+  return NextResponse.json(out);
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    const insert = {
+      amount: body.amount,
+      currency: body.currency ?? "INR",
+      merchant: String(body.merchant).toLowerCase(),
+      category: body.category ?? "Other",
+      user_note: body.userNote ?? null,
+      created_at: body.dateISO ?? null,
+    };
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert([insert])
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(toCamel(data as Row), { status: 201 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 }
