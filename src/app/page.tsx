@@ -5,10 +5,6 @@
 
 import { useState, useEffect } from "react";
 
-import Counter1 from "@/components/Counter";
-import Counter2 from "@/components/Counter2";
-import SumCount from "@/components/SumCounter";
-
 // this function is using regex to parse the input from what will eventually be the prompt for chatgpt and converting it into the amount spent and the name of the merchant.
 function parseInput(raw: string) {
   const s = raw.trim();
@@ -199,10 +195,6 @@ export default function Home() {
   const n = typeof a === "number" ? a : parseFloat(a);
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
-
-  // const [count1, setCount1] = useState(0);
-  // const [count2, setCount2] = useState(0);
-  // const total = count1 + count2;
 
   return (
     <main className="p-6">
