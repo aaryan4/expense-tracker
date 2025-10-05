@@ -5,39 +5,19 @@
 
 import { useState, useEffect } from "react";
 
-// this function is using regex to parse the input from what will eventually be the prompt for chatgpt and converting it into the amount spent and the name of the merchant.
-function parseInput(raw: string) {
-  const s = raw.trim();
-  if (!s)
-    return { amount: null as number | null, merchant: null as string | null };
-
-  const numMatch = s.match(/\d+(?:\.\d{1,2})?/);
-  const amount = numMatch ? parseFloat(numMatch[0]) : null;
-
-  const merchant =
-    s
-      .replace(numMatch ? numMatch[0] : "", "")
-      .replace(/[^a-zA-Z\s]/g, "")
-      .trim()
-      .toLowerCase() || null;
-
-  return { amount, merchant };
-}
-
 export default function Home() {
   const [raw, setRaw] = useState("");
 
   const [transactions, setTransactions] = useState<
-  {
-    id: string;
-    amount: number | string;   // ← allow string or number
-    currency: string;
-    merchant: string;
-    category: string;
-    createdAt: string;
-  }[]
->([]);
-
+    {
+      id: string;
+      amount: number | string; // ← allow string or number
+      currency: string;
+      merchant: string;
+      category: string;
+      createdAt: string;
+    }[]
+  >([]);
 
   type ParsedResult = {
     amount: number | null;
@@ -127,8 +107,9 @@ export default function Home() {
       setPending(data.result);
       setPendingSource(data.source);
       setRaw("");
-    } catch (err: any) {
-      setSubmitErr(err.message || String(err));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitErr(msg);
     } finally {
       setSubmitting(false);
     }
@@ -192,9 +173,9 @@ export default function Home() {
     setTransactions(data);
   }
   function formatAmount(a: number | string) {
-  const n = typeof a === "number" ? a : parseFloat(a);
-  return Number.isFinite(n) ? n.toFixed(2) : "—";
-}
+    const n = typeof a === "number" ? a : parseFloat(a);
+    return Number.isFinite(n) ? n.toFixed(2) : "—";
+  }
 
   return (
     <main className="p-6">
@@ -215,6 +196,7 @@ export default function Home() {
           {submitting ? "Parsing..." : "Add"}
         </button>
       </form>
+      {submitErr && <p className="mt-2 text-sm text-red-600">{submitErr}</p>}
       {pending && draft && (
         <div className="mb-6 rounded border p-4">
           <div className="mb-3 text-sm text-gray-600">
