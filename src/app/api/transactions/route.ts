@@ -1,43 +1,41 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 
-const CreateSchema = z.object({
-  amount: z.number().finite(),
-  currency: z.string().min(1).default("INR"),
-  merchant: z.string().min(1),
-  category: z.string().min(1),
-  userNote: z.string().optional(),
-  dateISO: z.string().optional(), // optional override
-});
-
-export async function GET() {
-  const items = await prisma.transaction.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-  return NextResponse.json(items);
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY!
+);
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const parsed = CreateSchema.parse(body);
 
-    const created = await prisma.transaction.create({
-      data: {
-        amount: parsed.amount, // Prisma Decimal from number
-        currency: parsed.currency || "INR",
-        merchant: parsed.merchant.toLowerCase(),
-        category: parsed.category,
-        userNote: parsed.userNote ?? null,
-        createdAt: parsed.dateISO ? new Date(parsed.dateISO) : undefined,
-      },
-    });
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert([
+        {
+          amount: body.amount,
+          currency: body.currency,
+          merchant: body.merchant,
+          category: body.category,
+          created_at: body.dateISO,
+        },
+      ])
+      .select();
 
-    return NextResponse.json(created, { status: 201 });
-  } catch (e: unknown) {
-  const msg = e instanceof Error ? e.message : String(e);
-  return NextResponse.json({ error: msg }, { status: 400 });
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 400 });
+  }
 }
+
+export async function GET() {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return NextResponse.json({ error: String(error) }, { status: 400 });
+  return NextResponse.json(data);
 }
