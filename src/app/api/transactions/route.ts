@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY!
-);
+function serverClient(req: Request) {
+  const headers: Record<string, string> = {};
+  const auth = req.headers.get("Authorization");
+  if (auth) headers["Authorization"] = auth;
+
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_KEY!,
+    { global: { headers } }
+  );
+}
 
 type Row = {
   id: string;
@@ -14,6 +21,7 @@ type Row = {
   category: string;
   user_note: string | null;
   created_at: string;
+  user_id: string | null;
 };
 
 function toCamel(r: Row) {
@@ -28,33 +36,36 @@ function toCamel(r: Row) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const supabase = serverClient(req);
   const { data, error } = await supabase
     .from("transactions")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(100);
 
-  if (error) {
-    return NextResponse.json({ error: String(error.message) }, { status: 400 });
-  }
-
-  const out = (data ?? []).map(toCamel);
-  return NextResponse.json(out);
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json((data ?? []).map(toCamel));
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const supabase = serverClient(req);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-    const insert = {
+    const body = await req.json();
+    const insert: any = {
       amount: body.amount,
       currency: body.currency ?? "INR",
       merchant: String(body.merchant).toLowerCase(),
       category: body.category ?? "Other",
       user_note: body.userNote ?? null,
-      created_at: body.dateISO ?? null,
+      user_id: auth.user.id,                    // <- key line
     };
+    if (body.dateISO && !Number.isNaN(Date.parse(body.dateISO))) {
+      insert.created_at = new Date(body.dateISO).toISOString();
+    }
 
     const { data, error } = await supabase
       .from("transactions")
@@ -63,7 +74,6 @@ export async function POST(req: Request) {
       .single();
 
     if (error) throw error;
-
     return NextResponse.json(toCamel(data as Row), { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
