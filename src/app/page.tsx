@@ -191,18 +191,18 @@ useEffect(() => {
   setTransactions(Array.isArray(data) ? data : []);
 }
 
-async function authFetch(url: string, init?: RequestInit) {
-  const { data } = await supa.auth.getSession();
-  const token = data.session?.access_token;
-  return fetch(url, {
-    ...init,
-    headers: {
-      ...(init?.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "Content-Type": "application/json",
-    },
-  });
-}
+// async function authFetch(url: string, init?: RequestInit) {
+//   const { data } = await supa.auth.getSession();
+//   const token = data.session?.access_token;
+//   return fetch(url, {
+//     ...init,
+//     headers: {
+//       ...(init?.headers || {}),
+//       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+//       "Content-Type": "application/json",
+//     },
+//   });
+// }
   function formatAmount(a: number | string) {
     const n = typeof a === "number" ? a : parseFloat(a);
     return Number.isFinite(n) ? n.toFixed(2) : "—";
