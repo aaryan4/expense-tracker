@@ -17,6 +17,7 @@ type Row = {
   category: string;
   user_note: string | null;
   created_at: string;
+  user_id?: string | null;
 };
 
 // --- Utility: convert DB snake_case to camelCase for frontend ---
@@ -62,7 +63,7 @@ export async function GET() {
 // Insert new transaction
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const supabase = serverClient(req);
 
     // Validate payload
     if (!body.amount || !body.merchant) {
@@ -75,11 +76,15 @@ export async function POST(req: Request) {
     const insert = {
       amount: Number(body.amount),
       currency: body.currency ?? "INR",
-      merchant: String(body.merchant).toLowerCase(),
+      merchant: String(body.merchant ?? "").toLowerCase(),
       category: body.category ?? "Other",
       user_note: body.userNote ?? null,
       created_at: body.dateISO ?? new Date().toISOString(),
     };
+
+    if (body.dateISO && !Number.isNaN(Date.parse(body.dateISO))) {
+      insert.created_at = new Date(body.dateISO).toISOString();
+    }
 
     const { data, error } = await supabase
       .from("transactions")

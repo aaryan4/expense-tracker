@@ -4,8 +4,18 @@
   form field is shown in the transaction history because the state is carrying that information somehow down to history */
 
 import { useState, useEffect } from "react";
+import { supa } from "@/lib/supabaseClient";
 
 export default function Home() {
+  const [session, setSession] = useState<Awaited<
+  ReturnType<typeof supa.auth.getSession>
+>["data"]["session"] | null>(null);
+
+useEffect(() => {
+  supa.auth.getSession().then(({ data }) => setSession(data.session));
+  const { data: sub } = supa.auth.onAuthStateChange((_e, s) => setSession(s));
+  return () => sub.subscription.unsubscribe();
+}, []);
   const [raw, setRaw] = useState("");
 
   const [transactions, setTransactions] = useState<
@@ -84,6 +94,8 @@ export default function Home() {
   useEffect(() => {
     loadFromServer();
   }, []);
+
+  
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -178,6 +190,19 @@ export default function Home() {
   const data = await res.json();
   setTransactions(Array.isArray(data) ? data : []);
 }
+
+async function authFetch(url: string, init?: RequestInit) {
+  const { data } = await supa.auth.getSession();
+  const token = data.session?.access_token;
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...(init?.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "application/json",
+    },
+  });
+}
   function formatAmount(a: number | string) {
     const n = typeof a === "number" ? a : parseFloat(a);
     return Number.isFinite(n) ? n.toFixed(2) : "—";
@@ -186,6 +211,43 @@ export default function Home() {
   return (
     <main className="p-6">
       <h1 className="text-2xl font-bold mb-4">Expense Tracker</h1>
+      {!session ? (
+  <div className="mb-4 flex gap-2">
+    <input
+      type="email"
+      placeholder="your@email.com"
+      className="border rounded px-3 py-2"
+      onKeyDown={async (e) => {
+        if (e.key !== "Enter") return;
+        const email = (e.target as HTMLInputElement).value.trim();
+        if (!email) return;
+        const { error } = await supa.auth.signInWithOtp({ email });
+        alert(error ? error.message : "Magic link sent. Check your email.");
+      }}
+    />
+    <button
+      className="border rounded px-3 py-2"
+      onClick={async () => {
+        const email = prompt("Email for magic link?");
+        if (!email) return;
+        const { error } = await supa.auth.signInWithOtp({ email });
+        alert(error ? error.message : "Magic link sent. Check your email.");
+      }}
+    >
+      Send Magic Link
+    </button>
+  </div>
+) : (
+  <div className="mb-4 flex items-center gap-3">
+    <div className="text-sm text-gray-600">Signed in as {session.user.email}</div>
+    <button
+      className="border rounded px-3 py-2"
+      onClick={() => supa.auth.signOut()}
+    >
+      Sign out
+    </button>
+  </div>
+)}
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
           value={raw}

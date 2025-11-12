@@ -15,11 +15,11 @@ datasource db {
 
 model Transaction {
   id        String   @id @default(cuid())
-  amount    Decimal  @db.Decimal(10,2)
-  currency  String   @default("INR")
+  amount    Float
+  currency  String
   merchant  String
   category  String
-  userNote  String?
   createdAt DateTime @default(now())
+  userId    String
 }
 
