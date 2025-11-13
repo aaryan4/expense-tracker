@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// --- Server-only Supabase client (service role key) ---
+/**
+ * Server-only Supabase client — use service role key on server.
+ * Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Vercel.
+ */
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPA_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(SUPA_URL, SUPA_SERVICE_KEY);
 
-// --- Types ---
+/** DB row shape (snake_case matches DB) */
 type Row = {
   id: string;
   amount: number | string;
@@ -18,7 +21,7 @@ type Row = {
   user_id?: string | null;
 };
 
-// --- Utils ---
+/** Convert DB row to frontend camelCase shape */
 function toCamel(r: Row) {
   return {
     id: r.id,
@@ -31,7 +34,7 @@ function toCamel(r: Row) {
   };
 }
 
-// --- GET /api/transactions ---
+/** GET /api/transactions — list recent transactions */
 export async function GET() {
   try {
     const { data, error } = await supabase
@@ -45,15 +48,16 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to load transactions" }, { status: 500 });
     }
 
-    const out = (data ?? []).map(toCamel);
+    const rows = (data ?? []) as Row[];
+    const out = rows.map(toCamel);
     return NextResponse.json(out, { status: 200 });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("GET /api/transactions unexpected error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-// --- POST /api/transactions ---
+/** POST /api/transactions — create a transaction */
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -61,13 +65,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing JSON body" }, { status: 400 });
     }
 
-    // Parse + validate
+    // Parse + validate incoming payload
     const amount = Number(body.amount);
     const merchant = typeof body.merchant === "string" ? body.merchant.trim() : "";
     const category = typeof body.category === "string" ? body.category.trim() : "Other";
     const currency = typeof body.currency === "string" ? body.currency.trim() : "INR";
     const userNote = body.userNote ?? null;
-    const dateISO = body.dateISO ?? null;
+    const dateISO = typeof body.dateISO === "string" ? body.dateISO : null;
 
     if (!Number.isFinite(amount) || amount <= 0 || !merchant) {
       return NextResponse.json(
@@ -76,7 +80,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const insert: Record<string, any> = {
+    // Build insert object with safe types
+    const insert: Record<string, unknown> = {
       amount,
       currency,
       merchant: merchant.toLowerCase(),
@@ -94,7 +99,7 @@ export async function POST(req: Request) {
     }
 
     const { data, error } = await supabase
-      .from<Row>("transactions")
+      .from("transactions")
       .insert([insert])
       .select("*")
       .single();
@@ -104,10 +109,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to save transaction" }, { status: 500 });
     }
 
-    return NextResponse.json(toCamel(data as Row), { status: 201 });
-  } catch (err) {
+    const inserted = data as Row;
+    return NextResponse.json(toCamel(inserted), { status: 201 });
+  } catch (err: unknown) {
     console.error("POST /api/transactions unexpected error:", err);
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = err instanceof Error ? err.message : "Server error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
