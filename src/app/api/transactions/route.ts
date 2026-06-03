@@ -10,17 +10,6 @@ type Row = {
   createdAt: string;
 };
 
-function toCamel(r: Row) {
-  return {
-    id: r.id,
-    amount: typeof r.amount === "string" ? parseFloat(r.amount) : r.amount,
-    currency: r.currency,
-    merchant: r.merchant,
-    category: r.category,
-    createdAt: r.createdAt,
-  };
-}
-
 export async function GET() {
   try {
     const data = await prisma.transaction.findMany({
