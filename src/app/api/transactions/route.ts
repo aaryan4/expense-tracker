@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 import {prisma} from "@/lib/prisma";
 
-type Row = {
-  id: string;
-  amount: number | string;
-  currency: string;
-  merchant: string;
-  category: string;
-  createdAt: string;
-};
-
 export async function GET() {
   try {
     const data = await prisma.transaction.findMany({
