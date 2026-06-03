@@ -1,18 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-/** Create a Supabase client that forwards the user's Authorization header */
-function serverClient(req: Request) {
-  const headers: Record<string, string> = {};
-  const auth = req.headers.get("Authorization");
-  if (auth) headers["Authorization"] = auth;
-
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_KEY!,
-    { global: { headers } }
-  );
-}
+import {prisma} from "@/lib/prisma";
 
 type Row = {
   id: string;
@@ -20,9 +7,7 @@ type Row = {
   currency: string;
   merchant: string;
   category: string;
-  user_note: string | null;
-  created_at: string;
-  user_id?: string | null;
+  createdAt: string;
 };
 
 function toCamel(r: Row) {
@@ -32,25 +17,30 @@ function toCamel(r: Row) {
     currency: r.currency,
     merchant: r.merchant,
     category: r.category,
-    userNote: r.user_note,
-    createdAt: r.created_at,
+    createdAt: r.createdAt,
   };
 }
 
-export async function GET(req: Request) {
-  const supabase = serverClient(req);
+export async function GET() {
+  try {
+    const data = await prisma.transaction.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 100,
+    });
 
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(100);
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET TRANSACTIONS ERROR:", e);
 
-  if (error) {
-    return NextResponse.json({ error: String(error.message) }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: e instanceof Error ? e.message : String(e),
+      },
+      { status: 400 }
+    );
   }
-
-  return NextResponse.json((data ?? []).map(toCamel));
 }
 
 /** Types for the incoming payload and the row we insert */
@@ -68,47 +58,56 @@ type InsertRow = {
   currency: string;
   merchant: string;
   category: string;
-  user_note: string | null;
-  user_id: string;
-  created_at?: string; // only when a valid date is provided
+  createdAt?: string;
 };
 
 export async function POST(req: Request) {
   try {
-    const supabase = serverClient(req);
-
-    // Get the authenticated user (required by RLS + to set user_id)
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
     const body: IncomingBody = await req.json();
 
     const insert: InsertRow = {
       amount: Number(body.amount),
       currency: body.currency ?? "INR",
-      merchant: String(body.merchant ?? "").toLowerCase(),
+      merchant: String(body.merchant ?? "Unknown").toLowerCase(),
       category: body.category ?? "Other",
-      user_note: body.userNote ?? null,
-      user_id: auth.user.id,
     };
 
     if (body.dateISO && !Number.isNaN(Date.parse(body.dateISO))) {
-      insert.created_at = new Date(body.dateISO).toISOString();
+      insert.createdAt = new Date(body.dateISO).toISOString();
     }
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert([insert])
-      .select("*")
-      .single();
+    const data = await prisma.transaction.create({
+      data: {
+        amount: insert.amount,
+        currency: insert.currency,
+        merchant: insert.merchant,
+        category: insert.category,
+        ...(insert.createdAt ? { createdAt: new Date(insert.createdAt) } : {}),
+      },
+    });
 
-    if (error) throw error;
+    return NextResponse.json(data, { status: 201 });
+ } catch (e) {
 
-    return NextResponse.json(toCamel(data as Row), { status: 201 });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
+  console.error("TRANSACTION ERROR:", e);
+
+  return NextResponse.json(
+
+    {
+
+      error:
+
+        e instanceof Error
+
+          ? e.message
+
+          : JSON.stringify(e, null, 2),
+
+    },
+
+    { status: 400 }
+
+  );
+
+}
 }
